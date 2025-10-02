@@ -1,16 +1,10 @@
-
 #include <Windows.h>
 #include <iostream>
-#include <detours.h>
 #include "curlhook.h"
 #include "exithook.h"
 #include <MinHook/MinHook.h>
 
-#define DetoursEasy(address, hook) \
-	DetourTransactionBegin(); \
-    DetourUpdateThread(GetCurrentThread()); \
-    DetourAttach(reinterpret_cast<void**>(&address), hook); \
-    DetourTransactionCommit();
+#define DetoursEasy(address, hook) Hook(address, hook)
 
 void returnNone() { return; }
 
@@ -30,12 +24,13 @@ auto FindPushWidget()
 
 void Hook(void* Target, void* Detour)
 {
-#ifdef USE_MINHOOK
     MH_CreateHook(Target, Detour, nullptr);
     MH_EnableHook(Target);
-#else
-    Memcury::VEHHook::AddHook(Target, Detour);
-#endif
+}
+
+void Hook(__int64 Target,void* Detour)
+{
+    Hook((void*)Target, Detour);
 }
 
 bool FixMemoryLeak() // 8.51
@@ -94,16 +89,7 @@ bool InitializeCurlHook()
     CurlEasySetOpt = decltype(CurlEasySetOpt)(CurlEasySetOptAddr);
     CurlSetOpt = decltype(CurlSetOpt)(CurlSetOptAddr);
 
-    if (FindPushWidget())
-    {
-        DetoursEasy(CurlEasySetOpt, CurlEasySetOptDetour);
-    }
-    else
-    {
-        // TODO find a better way to "bypass" UAC (aka switch off VEH hooks)
-
-        Hook(CurlEasySetOpt, CurlEasySetOptDetour);
-    }
+    Hook(CurlEasySetOpt, CurlEasySetOptDetour);
 
     return true;
 }
@@ -201,11 +187,7 @@ DWORD WINAPI Main(LPVOID)
     std::cout << "Memcury - https://github.com/kem0x/Memcury\n";
     std::cout << "Neonite++ for most of the signatures and curl hook - https://github.com/PeQuLeaks/NeonitePP-Fixed/tree/1.4\n\n";
 
-#ifdef USE_MINHOOK
     MH_Initialize();
-#else
-    Memcury::VEHHook::Init();
-#endif
 
     bool curlResult = InitializeCurlHook();
     InitializeEOSCurlHook();
@@ -216,6 +198,7 @@ DWORD WINAPI Main(LPVOID)
     if (result)
     {
         std::cout << "Cobalt v0.1 initialized sucessfully.\n";
+        // MessageBoxA(0, "Cobalt v0.1 initialized successfully.", "Cobalt", MB_OK);
     }
     else
     {
